@@ -112,22 +112,6 @@ void random_vector(std::shared_ptr<std::vector<double>> vect, int n)
 
 }
 
-///* allocate problem info */
-//static struct fclib_info* problem_info(char *title, char *desc, char *math)
-//{
-//	struct fclib_info *info;
-//
-//	MM(info = malloc(sizeof(struct fclib_info)));
-//	MM(info->title = malloc(strlen(title) + 1));
-//	strcpy(info->title, title);
-//	MM(info->description = malloc(strlen(desc) + 1));
-//	strcpy(info->description, desc);
-//	MM(info->math_info = malloc(strlen(math) + 1));
-//	strcpy(info->math_info, math);
-//
-//	return info;
-//}
-
 
 /* generate random global problem */
 void random_global_problem(fclib::fclib_global_problem_CPP& problem_out,
@@ -159,8 +143,12 @@ void random_global_problem(fclib::fclib_global_problem_CPP& problem_out,
 	}
 
 	if (create_info)
-		problem->info = problem_info("A random global problem", "With random matrices", "And fake math");
-	else problem->info = NULL;
+	{
+		problem_out.SetTitle(std::string("A random global problem"));
+		problem_out.SetDescription(std::string("With random matrices"));
+		problem_out.SetMathInfo(std::string("And fake math"));
+	}
+
 
 }
 
@@ -189,7 +177,7 @@ void random_global_solutions(fclib::fclib_global_problem_CPP& global_prob, std::
 }
 
 /* generate random local problem */
-void random_local_problem(fclib::fclib_local_problem_CPP& local_prob, int contact_points, int neq, int spacedim, fclib::fclib_matrix_CPP::mat_format_t mat_format)
+void random_local_problem(fclib::fclib_local_problem_CPP& local_prob, int contact_points, int neq, int spacedim, fclib::fclib_matrix_CPP::mat_format_t mat_format, bool create_info)
 {
 
 	local_prob.SetSpaceDim(spacedim);
@@ -210,8 +198,12 @@ void random_local_problem(fclib::fclib_local_problem_CPP& local_prob, int contac
 	random_vector(local_prob.mu, contact_points);
 	random_vector(local_prob.q, spacedim*contact_points);
 
-	//if (rand() % 2) problem->info = problem_info("A random local problem", "With random matrices", "And fake math");
-	//else problem->info = NULL;
+	if (create_info)
+	{
+		local_prob.SetTitle(std::string("A random global problem"));
+		local_prob.SetDescription(std::string("With random matrices"));
+		local_prob.SetMathInfo(std::string("And fake math"));
+	}
 
 }
 
@@ -254,7 +246,7 @@ void random_local_solutions(fclib::fclib_local_problem_CPP& local_prob, std::vec
 //}
 
 /* compare two matrices */
-static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP> a, std::shared_ptr<fclib::fclib_matrix_CPP> b)
+static int compare_matrices(std::shared_ptr<fclib::fclib_matrix_CPP> a, std::shared_ptr<fclib::fclib_matrix_CPP> b)
 {
 	int i;
 
@@ -267,11 +259,11 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 		a->GetNZ() != b->GetNZ())
 	{
 		fprintf(stderr,
-			"ERROR: dimensions of matrix %s differ:\n"
+			"ERROR: dimensions of matrix differ:\n"
 			"a->GetNZmax() = %d, b->GetNZmax() = %d\n"
 			"a->GetColumns() = %d, b->GetColumns() = %d\n"
 			"a->GetRows() = %d, b->GetRows() = %d\n"
-			"a->GetNZ() = %d, b->GetNZ() = %d\n", name,
+			"a->GetNZ() = %d, b->GetNZ() = %d\n",
 			a->GetNZmax(), b->GetNZmax(),
 			a->GetColumns(), b->GetColumns(),
 			a->GetRows(), b->GetRows(),
@@ -286,15 +278,15 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 			if ((*(a->p))[i] != (*(b->p))[i])
 			{
 				fprintf(stderr,
-					"ERROR: For %s in {a,b} (*(a->p)) [%d] != (*(b->p)) [%d] => %d != %d\n",
-					name, i, i, (*(a->p))[i], (*(b->p))[i]);
+					"ERROR: For matrix in {a,b} (*(a->p)) [%d] != (*(b->p)) [%d] => %d != %d\n",
+					 i, i, (*(a->p))[i], (*(b->p))[i]);
 				return 0;
 			}
 			if ((*(a->i))[i] != (*(b->i))[i])
 			{
 				fprintf(stderr,
-					"ERROR: For %s in {a,b} (*(a->i)) [%d] != (*(b->i)) [%d] => %d != %d\n",
-					name, i, i, (*(a->i))[i], (*(b->i))[i]);
+					"ERROR: For this matrix in {a,b} (*(a->i)) [%d] != (*(b->i)) [%d] => %d != %d\n",
+					 i, i, (*(a->i))[i], (*(b->i))[i]);
 				return 0;
 			}
 		}
@@ -305,8 +297,8 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 			if ((*(a->p))[i] != (*(b->p))[i])
 			{
 				fprintf(stderr,
-					"ERROR: For %s in {a,b} (*(a->p)) [%d] != (*(b->p)) [%d] => %d != %d\n",
-					name, i, i, (*(a->p))[i], (*(b->p))[i]);
+					"ERROR: For this matrix in {a,b} (*(a->p)) [%d] != (*(b->p)) [%d] => %d != %d\n",
+					 i, i, (*(a->p))[i], (*(b->p))[i]);
 				return 0;
 			}
 
@@ -314,8 +306,8 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 			if ((*(a->i))[i] != (*(b->i))[i])
 			{
 				fprintf(stderr,
-					"ERROR: For %s in {a,b} (*(a->i)) [%d] != (*(b->i)) [%d] => %d != %d\n",
-					name, i, i, (*(a->i))[i], (*(b->i))[i]);
+					"ERROR: For this matrix in {a,b} (*(a->i)) [%d] != (*(b->i)) [%d] => %d != %d\n",
+					 i, i, (*(a->i))[i], (*(b->i))[i]);
 				return 0;
 			}
 	}
@@ -325,8 +317,8 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 			if ((*(a->p))[i] != (*(b->p))[i])
 			{
 				fprintf(stderr,
-					"ERROR: For %s in {a,b} (*(a->p)) [%d] != (*(b->p)) [%d] => %d != %d\n",
-					name, i, i, (*(a->p))[i], (*(b->p))[i]);
+					"ERROR: For this matrix in {a,b} (*(a->p)) [%d] != (*(b->p)) [%d] => %d != %d\n",
+					 i, i, (*(a->p))[i], (*(b->p))[i]);
 				return 0;
 			}
 
@@ -334,8 +326,8 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 			if ((*(a->i))[i] != (*(b->i))[i])
 			{
 				fprintf(stderr,
-					"ERROR: For %s in {a,b} (*(a->i)) [%d] != (*(b->i)) [%d] => %d != %d\n",
-					name, i, i, (*(a->i))[i], (*(b->i))[i]);
+					"ERROR: For this matrix in {a,b} (*(a->i)) [%d] != (*(b->i)) [%d] => %d != %d\n",
+					 i, i, (*(a->i))[i], (*(b->i))[i]);
 				return 0;
 			}
 	}
@@ -344,8 +336,8 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 		if ((*(a->x))[i] != (*(b->x))[i])
 		{
 			fprintf(stderr,
-				"ERROR: For %s in {a, b} (*(a->x)) [%d] != (*(b->x)) [%d] => %g != %g\n",
-				name, i, i, (*(a->x))[i], (*(b->x))[i]);
+				"ERROR: For this matrix in {a, b} (*(a->x)) [%d] != (*(b->x)) [%d] => %g != %g\n",
+				 i, i, (*(a->x))[i], (*(b->x))[i]);
 			return 0;
 		}
 
@@ -362,7 +354,7 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 static int compare_vectors(std::shared_ptr<std::vector<double>> a, std::shared_ptr<std::vector<double>> b)
 {
 	bool is_different = true;
-	if (a->size() != b->size())
+	if (!a && !b || a->size() != b->size())
 		return 1;
 
 	for (auto row_sel = 0; row_sel<a->size(); ++row_sel)
@@ -388,9 +380,9 @@ static int compare_vectors(std::shared_ptr<std::vector<double>> a, std::shared_p
 /* compare global problems */
 static int compare_global_problems(fclib::fclib_global_problem_CPP& a, fclib::fclib_global_problem_CPP& b)
 {
-	if (!compare_matrices("M", a.matM, b.matM) ||
-		!compare_matrices("H", a.matH, b.matH) ||
-		!compare_matrices("G", a.matG, b.matG) ||
+	if (!compare_matrices(a.matM, b.matM) ||
+		!compare_matrices(a.matH, b.matH) ||
+		!compare_matrices(a.matG, b.matG) ||
 		!compare_vectors(a.mu, b.mu) ||
 		!compare_vectors(a.f, b.f) ||
 		!compare_vectors(a.b, b.b) ||
@@ -405,9 +397,9 @@ static int compare_global_problems(fclib::fclib_global_problem_CPP& a, fclib::fc
 /* compare local problems */
 static int compare_local_problems(fclib::fclib_local_problem_CPP& a, fclib::fclib_local_problem_CPP& b)
 {
-	if (!compare_matrices("W", a.matW, b.matW) ||
-		!compare_matrices("V", a.matV, b.matV) ||
-		!compare_matrices("R", a.matR, b.matR) ||
+	if (!compare_matrices(a.matW, b.matW) ||
+		!compare_matrices(a.matV, b.matV) ||
+		!compare_matrices(a.matR, b.matR) ||
 		!compare_vectors(a.mu, b.mu) ||
 		!compare_vectors(a.q, b.q) ||
 		!compare_vectors(a.s, b.s) ||
@@ -433,7 +425,7 @@ int main(int argc, char **argv)
 {
 	srand(static_cast<unsigned int>(time(nullptr)));
 
-	bool global = true;
+	bool global = false;
 	if (global)
 	{
 		int space_dimension = 2;
@@ -496,7 +488,7 @@ int main(int argc, char **argv)
 
 
 
-		random_local_problem(problem_out, contact_points, neq, space_dimension, mat_format);
+		random_local_problem(problem_out, contact_points, neq, space_dimension, mat_format, create_info);
 		random_local_solutions(problem_out, solution_out);
 		random_local_solutions(problem_out, guesses_out, num_guesses_out);
 

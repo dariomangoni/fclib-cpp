@@ -360,7 +360,13 @@ namespace fclib
 		void SetSpaceDim(int space_dimension) { spacedim = space_dimension; }
 		int GetSpaceDim() const { return spacedim; }
 
+		void SetTitle(std::string title_in) { has_info = true; title = title_in; }
+		void SetDescription(std::string description_in) { has_info = true; description = description_in; }
+		void SetMathInfo(std::string math_info_in) { has_info = true; math_info = math_info_in; }
 
+		std::string GetTitle() const {return title;}
+		std::string GetDescription() const {return description;}
+		std::string GetMathInfo() const {return math_info;}
 
 		virtual void read_problem(std::string path) = 0;
 		virtual void write_problem(std::string path) const = 0;
@@ -764,7 +770,10 @@ namespace fclib
 				v = std::make_shared<std::vector<double>>();
 				u = std::make_shared<std::vector<double>>();
 				r = std::make_shared<std::vector<double>>();
-				if (has_l) l = std::make_shared<std::vector<double>>();
+				if (has_l)
+					l = std::make_shared<std::vector<double>>();
+				else
+					l = nullptr;
 			}
 
 			fclib_solution_CPP(std::shared_ptr<std::vector<double>> v_in,
@@ -802,12 +811,19 @@ namespace fclib
 
 			void write_solution(hid_t file_id) const
 			{
-				hsize_t nv = v->size();
-				hsize_t nl = l->size();
-				hsize_t nr = r->size();
-				if (nv) IO(H5LTmake_dataset_double(file_id, "v", 1, &nv, v->data()));
-				if (nl) IO(H5LTmake_dataset_double(file_id, "l", 1, &nl, l->data()));
+				if (l)
+				{
+					auto nl = static_cast<hsize_t>(l->size());
+					if (nl) IO(H5LTmake_dataset_double(file_id, "l", 1, &nl, l->data()));
+				}
 
+				if (v)
+				{
+					auto nv = static_cast<hsize_t>(v->size());
+					IO(H5LTmake_dataset_double(file_id, "v", 1, &nv, v->data()));
+				}
+
+				auto nr = static_cast<hsize_t>(r->size());
 				assert(nr && "ERROR: contact constraints must be present");
 				IO(H5LTmake_dataset_double(file_id, "u", 1, &nr, u->data()));
 				IO(H5LTmake_dataset_double(file_id, "r", 1, &nr, r->data()));
