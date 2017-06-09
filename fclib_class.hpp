@@ -72,7 +72,7 @@ namespace fclib
 				flags_used == H5F_ACC_TRUNC ||    /*overwrite existing files*/
 				flags_used == H5F_ACC_CREAT)       /*create non-existing files*/
 			{
-				file_id = H5Fcreate(path.c_str(), flags, H5P_DEFAULT, H5P_DEFAULT);
+				file_id = H5Fcreate(path.c_str(), flags_used, H5P_DEFAULT, H5P_DEFAULT);
 				if (file_id < 0)
 					fprintf(stderr, "ERROR: creating file failed\n");
 				else
@@ -160,8 +160,8 @@ namespace fclib
 	protected:
 
 		int nzmax = 0;
-		int m = 0;
-		int n = 0;
+		int m = -1;
+		int n = -1;
 		int nz = 0;
 
 		// optional
@@ -200,6 +200,18 @@ namespace fclib
 		int GetColumns() const { return n; }
 		int GetNZmax() const { return nzmax; }
 		int GetNZ() const { return nz; }
+
+		void SetComment(std::string comment_in) { has_info = true; comment = comment_in; }
+		void SetConditioning(double determinant_in) { has_info = true; determinant = determinant_in; }
+		void SetDeterminant(double determinant_in) { has_info = true; determinant = determinant_in; }
+		void SetRank(int rank_in) { has_info = true; rank = rank_in; }
+
+		std::string GetComment() const { return comment; }
+		double GetConditioning() const { return determinant; }
+		double GetDeterminant() const { return determinant; }
+		int GetRank() const { return rank; }
+
+		bool HasInfo() { return has_info; }
 
 		//void SetRows(int m_in) { m = m_in; }
 		//void SetColumns(int n_in) { n = n_in; }
@@ -368,6 +380,8 @@ namespace fclib
 		std::string GetDescription() const {return description;}
 		std::string GetMathInfo() const {return math_info;}
 
+		bool HasInfo() { return has_info; }
+
 		virtual void read_problem(std::string path) = 0;
 		virtual void write_problem(std::string path) const = 0;
 		virtual void read_vectors(hid_t group_id) const = 0;
@@ -434,18 +448,22 @@ namespace fclib
 
 		void read_vectors(hid_t group_id) const override
 		{
+
 			q->resize(matW->GetRows());
 			IO(H5LTread_dataset_double(group_id, "q", q->data()));
+
 
 			assert(matW->GetRows() % spacedim == 0 && "ERROR: number of W rows is not divisble by the spatial dimension");
 			mu->resize(matW->GetRows() / spacedim);
 			IO(H5LTread_dataset_double(group_id, "mu", mu->data()));
 
-			if (matR)
+
+			if (matR && matR->GetRows()>=0)
 			{
 				s->resize(matR->GetRows());
 				IO(H5LTread_dataset_double(group_id, "s", s->data()));
 			}
+
 		}
 
 		void write_vectors(hid_t group_id) const override
@@ -460,7 +478,7 @@ namespace fclib
 			dim = matW->GetRows() / spacedim;
 			IO(H5LTmake_dataset_double(group_id, "mu", 1, &dim, mu->data()));
 
-			if (matV)
+			if (matV && matV->GetRows() >= 0)
 			{
 				dim = matR->GetRows();
 				assert(s->data() && "ERROR: s must be given if R is present");
@@ -486,6 +504,8 @@ namespace fclib
 			matW->read_matrix(id);
 			IO(H5Gclose(id));
 
+
+
 			if (H5Lexists(file_id, "/fclib_local/V", H5P_DEFAULT))
 			{
 				IO(id = H5Gopen(file_id, "/fclib_local/V", H5P_DEFAULT));
@@ -497,9 +517,11 @@ namespace fclib
 				IO(H5Gclose(id));
 			}
 
+
 			IO(id = H5Gopen(file_id, "/fclib_local/vectors", H5P_DEFAULT));
 			read_vectors(id);
 			IO(H5Gclose(id));
+
 
 			if (H5Lexists(file_id, "/fclib_local/info", H5P_DEFAULT))
 			{
@@ -520,15 +542,15 @@ namespace fclib
 
 			IO(parent_group_id = HDF5handler::MakeGroup(file_id, "/fclib_local"));
 
-			ASSERT(spacedim == 2 || spacedim == 3, "ERROR: space dimension must be 2 or 3");
+			assert((spacedim == 2 || spacedim == 3) && "ERROR: space dimension must be 2 or 3");
 			IO(H5LTmake_dataset_int(file_id, "/fclib_local/spacedim", 1, &dim, &spacedim));
 
-			ASSERT(matW, "ERROR: W must be given");
+			assert(matW->GetRows()>=0 && "ERROR: W must be given");
 			IO(group_id = HDF5handler::MakeGroup(file_id, "/fclib_local/W"));
 			matW->write_matrix(group_id);
 			IO(H5Gclose(group_id));
 
-			if (matV && matR)
+			if (matV && matR && matV->GetRows() >= 0 && matR->GetRows() >= 0)
 			{
 				IO(group_id = HDF5handler::MakeGroup(file_id, "/fclib_local/V"));
 				matV->write_matrix(group_id);
@@ -539,7 +561,7 @@ namespace fclib
 				IO(H5Gclose(group_id));
 			}
 			else 
-				assert(!matV && !matR && "ERROR: V and R must be defined at the same time");
+				assert(((matR.get() == nullptr || matR->GetRows() >= 0) == (matV.get() == nullptr || matV->GetRows() >= 0 )) && "ERROR: V and R must be defined at the same time");
 
 			IO(group_id = HDF5handler::MakeGroup(file_id, "/fclib_local/vectors"));
 			write_vectors(group_id);
@@ -689,7 +711,7 @@ namespace fclib
 			matH->write_matrix(dataset_id);
 			IO(H5Gclose(dataset_id));
 
-			if (matG)
+			if (matG && matG->GetRows() >= 0)
 			{
 				IO(dataset_id = HDF5handler::MakeGroup(file_id, "/fclib_global/G"));
 				matG->write_matrix(dataset_id);
@@ -722,7 +744,7 @@ namespace fclib
 			IO(H5LTread_dataset_double(group_id, "w", w->data()));
 			IO(H5LTread_dataset_double(group_id, "mu", mu->data()));
 
-			if (matG)
+			if (matG && matG->GetRows() >= 0)
 			{
 				b->resize(matG->GetColumns());
 				IO(H5LTread_dataset_double(group_id, "b", b->data()));
@@ -744,7 +766,7 @@ namespace fclib
 			dim = matH->GetColumns() / spacedim;
 			IO(H5LTmake_dataset_double(group_id, "mu", 1, &dim, mu->data()));
 
-			if (matG)
+			if (matG && matG->GetRows() >= 0)
 			{
 				dim = matG->GetColumns();
 				assert(b->data() && "ERROR: b must be given if G is present");
@@ -765,15 +787,12 @@ namespace fclib
 			std::shared_ptr<std::vector<double>> v, u, r, l;
 
 		public:
-			explicit fclib_solution_CPP(bool has_l = true)
+			explicit fclib_solution_CPP()
 			{
 				v = std::make_shared<std::vector<double>>();
 				u = std::make_shared<std::vector<double>>();
 				r = std::make_shared<std::vector<double>>();
-				if (has_l)
-					l = std::make_shared<std::vector<double>>();
-				else
-					l = nullptr;
+				l = std::make_shared<std::vector<double>>();
 			}
 
 			fclib_solution_CPP(std::shared_ptr<std::vector<double>> v_in,
@@ -811,13 +830,13 @@ namespace fclib
 
 			void write_solution(hid_t file_id) const
 			{
-				if (l)
+				if (l && l->size()>0)
 				{
 					auto nl = static_cast<hsize_t>(l->size());
 					if (nl) IO(H5LTmake_dataset_double(file_id, "l", 1, &nl, l->data()));
 				}
 
-				if (v)
+				if (v && v->size()>0)
 				{
 					auto nv = static_cast<hsize_t>(v->size());
 					IO(H5LTmake_dataset_double(file_id, "v", 1, &nv, v->data()));
@@ -829,7 +848,7 @@ namespace fclib
 				IO(H5LTmake_dataset_double(file_id, "r", 1, &nr, r->data()));
 			}
 
-			int read_solution(std::string path)
+			void read_solution(std::string path)
 			{
 				HDF5handler file_handler(path, H5F_ACC_RDONLY);
 				auto file_id = file_handler.GetID();
@@ -837,30 +856,14 @@ namespace fclib
 				hid_t  group_id;
 				int nv, nr, nl;
 
-				if (!read_solution_sizes(file_id, nv, nr, nl)) return 0;
+				if (!read_solution_sizes(file_id, nv, nr, nl)) assert(0);
 
 				IO(group_id = H5Gopen(file_id, "/solution", H5P_DEFAULT));
-				read_solution(group_id);
+				read_solution(group_id, nv, nr, nl);
 				IO(H5Gclose(group_id));
 
-				return read_solution(file_id);
 			}
 
-			int read_solution(hid_t file_id)
-			{
-				int nv, nr, nl;
-				hid_t group_id;
-
-				if (!read_solution_sizes(file_id, nv, nr, nl))
-					return 0;
-
-				IO(group_id = H5Gopen(file_id, "/solution", H5P_DEFAULT));
-				this->read_solution(group_id, nv, nr, nl);
-				IO(H5Gclose(group_id));
-
-
-				return 1;
-			}
 
 			void read_solution(hid_t file_id, hsize_t nv, hsize_t nr, hsize_t nl)
 			{
@@ -871,14 +874,15 @@ namespace fclib
 					IO(H5LTread_dataset_double(file_id, "v", v->data()));
 				}
 				else
-				v = nullptr;
+					v.reset();
 
 				if (nl)
 				{
 					l->resize(nl);
 					IO(H5LTread_dataset_double(file_id, "l", l->data()));
 				}
-				else l = nullptr;
+				else
+					l.reset();
 
 				assert(nr && "ERROR: contact constraints must be present");
 				u->resize(nr);
