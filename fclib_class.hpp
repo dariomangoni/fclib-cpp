@@ -177,8 +177,8 @@ namespace fclib
 		enum class mat_format_t
 		{
 			COO,
-			CSR,
-			CSC
+			CSC,
+			CSR
 		};
 
 		fclib_matrix_CPP()
@@ -211,7 +211,7 @@ namespace fclib
 		double GetDeterminant() const { return determinant; }
 		int GetRank() const { return rank; }
 
-		bool HasInfo() { return has_info; }
+		bool HasInfo() const { return has_info; }
 
 		//void SetRows(int m_in) { m = m_in; }
 		//void SetColumns(int n_in) { n = n_in; }
@@ -230,11 +230,11 @@ namespace fclib
 		{
 			switch (nz_in)
 			{
-			case -1: // CSR
+			case -2: // CSR
 				p->resize(m_in + 1);
 				i->resize(nzmax_in);
 				break;
-			case -2: // CSC
+			case -1: // CSC
 				p->resize(n_in + 1);
 				i->resize(nzmax_in);
 				break;
@@ -270,18 +270,27 @@ namespace fclib
 			IO(H5LTread_dataset_int(id, "i", i->data()));
 			IO(H5LTread_dataset_double(id, "x", x->data() ));
 
+			has_info = false;
 			if (H5LTfind_dataset(id, "conditioning"))
 			{
 				has_info = true;
-
 				IO(H5LTread_dataset_double(id, "conditioning", &conditioning));
-				IO(H5LTread_dataset_double(id, "determinant", &determinant));
-				IO(H5LTread_dataset_int(id, "rank", &rank));
-
-				getStringFromField(id, comment, std::string("field"));
 			}
-			else
-				has_info = false;
+			if (H5LTfind_dataset(id, "determinant"))
+			{
+				has_info = true;
+				IO(H5LTread_dataset_double(id, "determinant", &determinant));
+			}
+			if (H5LTfind_dataset(id, "rank"))
+			{
+				has_info = true;
+				IO(H5LTread_dataset_int(id, "rank", &rank));
+			}
+			if (H5LTfind_dataset(id, "comment"))
+			{
+				has_info = true;
+				getStringFromField(id, comment, std::string("comment"));
+			}
 
 		}
 
@@ -299,11 +308,11 @@ namespace fclib
 			hsize_t dim_x = nzmax;
 			switch (nz)
 			{
-			case -1: // CSR
+			case -2: // CSR
 				dim_p = m + 1;
 				dim_i = nzmax;
 				break;
-			case -2: // CSC
+			case -1: // CSC
 				dim_p = n + 1;
 				dim_i = nzmax;
 				break;
@@ -380,7 +389,7 @@ namespace fclib
 		std::string GetDescription() const {return description;}
 		std::string GetMathInfo() const {return math_info;}
 
-		bool HasInfo() { return has_info; }
+		bool HasInfo() const { return has_info; }
 
 		virtual void read_problem(std::string path) = 0;
 		virtual void write_problem(std::string path) const = 0;

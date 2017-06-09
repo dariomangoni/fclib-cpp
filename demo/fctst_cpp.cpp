@@ -29,21 +29,6 @@
 #include <algorithm>
 
 
-/* allocate matrix info */
-//static struct fclib_matrix_info* matrix_info(struct fclib_matrix *mat, char *comment)
-//{
-//	struct fclib_matrix_info *info;
-//
-//	MM(info = malloc(sizeof(struct fclib_matrix_info)));
-//	MM(info->comment = malloc(strlen(comment) + 1));
-//	strcpy(info->comment, comment);
-//	info->conditioning = rand();
-//	info->determinant = rand();
-//	info->rank = mat->GetRows();
-//
-//	return info;
-//}
-
 /* generate random sparse matrix */
 void random_matrix(std::shared_ptr<fclib::fclib_matrix_CPP> mat, int m, int n, fclib::fclib_matrix_CPP::mat_format_t mat_format, bool create_info)
 {
@@ -55,10 +40,10 @@ void random_matrix(std::shared_ptr<fclib::fclib_matrix_CPP> mat, int m, int n, f
 		nz_temp = nzmax_temp;
 		break;
 	case fclib::fclib_matrix_CPP::mat_format_t::CSR:
-		nz_temp = -1;
+		nz_temp = -2;
 		break;
 	case fclib::fclib_matrix_CPP::mat_format_t::CSC:
-		nz_temp = -2;
+		nz_temp = -1;
 		break;
 	default:
 		nz_temp = 0;
@@ -75,19 +60,19 @@ void random_matrix(std::shared_ptr<fclib::fclib_matrix_CPP> mat, int m, int n, f
 			mat->SetElementI(j, rand() % mat->GetColumns());
 		}
 		break;
-	case fclib::fclib_matrix_CPP::mat_format_t::CSR:
+	case fclib::fclib_matrix_CPP::mat_format_t::CSC:
 	{
 		auto l = mat->GetNZmax() / mat->GetColumns();
 		mat->SetElementP(0, 0);
-		for (auto j = 0; j < mat->GetColumns(); j++) mat->SetElementP(j + 1, mat->GetElementP(j) + l);
+		for (auto j = 1; j < mat->GetColumns(); j++) mat->SetElementP(j, mat->GetElementP(j-1) + l);
 		for (auto j = 0; j < mat->GetNZmax(); j++) mat->SetElementI(j, rand() % mat->GetColumns());
 	}
 		break;
-	case fclib::fclib_matrix_CPP::mat_format_t::CSC:
+	case fclib::fclib_matrix_CPP::mat_format_t::CSR:
 	{
 		auto l = mat->GetNZmax() / mat->GetRows();
 		mat->SetElementP(0, 0);
-		for (auto j = 0; j < mat->GetRows(); j++) mat->SetElementP(j + 1, mat->GetElementP(j) + l);
+		for (auto j = 1; j < mat->GetRows(); j++) mat->SetElementP(j, mat->GetElementP(j-1) + l);
 		for (auto j = 0; j < mat->GetNZmax(); j++) mat->SetElementI(j, rand() % mat->GetRows());
 	}
 		break;
@@ -347,7 +332,7 @@ static int compare_matrices(std::shared_ptr<fclib::fclib_matrix_CPP> a, std::sha
 			return 0;
 		}
 
-	if (a->HasInfo() && b->HasInfo())
+	if (a->HasInfo() && b->HasInfo() && a->GetComment() != b->GetComment())
 	{
 		fprintf(stderr, "ERROR: matrix infos differ\n");
 		return 0;
@@ -422,16 +407,19 @@ int main(int argc, char **argv)
 {
 	srand(static_cast<unsigned int>(time(nullptr)));
 
+	int space_dimension = 2;
+	int contact_points = 100;
+	int neq = 100;
+	auto mat_format = fclib::fclib_matrix_CPP::mat_format_t::CSR;
+	int num_guesses_out = 3;
+	bool create_info = true;
+
+	// only global
+	int global_dofs = 100;
+	bool create_G = true;
 
 	{
-		int space_dimension = 2;
-		int global_dofs = 100;
-		int contact_points = 100;
-		int neq = 100;
-		bool create_G = true;
-		auto mat_format = fclib::fclib_matrix_CPP::mat_format_t::COO;
-		int num_guesses_out = 3;
-		bool create_info = false; //TODO
+
 
 		fclib::fclib_global_problem_CPP problem_out, problem_in;
 		fclib::fclib_solution_CPP solution_out, solution_in;
@@ -453,6 +441,14 @@ int main(int argc, char **argv)
 		int num_guesses_in = fclib::fclib_solution_CPP::read_guesses(guesses_in, "output_file.hdf5");
 
 		printf("Comparing written and read global problem data ...\n");
+		assert(compare_matrices(problem_out.matM, problem_in.matM));
+		assert(compare_matrices(problem_out.matH, problem_in.matH));
+		assert(compare_matrices(problem_out.matG, problem_in.matG));
+		assert(compare_vectors(problem_out.mu, problem_in.mu));
+		assert(compare_vectors(problem_out.f, problem_in.f));
+		assert(compare_vectors(problem_out.b, problem_in.b));
+		assert(compare_vectors(problem_out.w, problem_in.w));
+		assert(problem_out.GetSpaceDim() == problem_in.GetSpaceDim());
 		assert(compare_global_problems(problem_out, problem_in) && "ERROR: written/read problem comparison failed");
 		assert(compare_solutions(solution_out, solution_out) && "ERROR: written/read solution comparison failed");
 		assert(num_guesses_out == num_guesses_in && "ERROR: numbers of written and read guesses differ");
@@ -468,12 +464,7 @@ int main(int argc, char **argv)
 
 	{
 
-		int space_dimension = 2;
-		int contact_points = 100;
-		int neq = 100;
-		auto mat_format = fclib::fclib_matrix_CPP::mat_format_t::COO;
-		int num_guesses_out = 3;
-		bool create_info = false; //TODO
+
 
 		fclib::fclib_local_problem_CPP problem_out, problem_in;
 		fclib::fclib_solution_CPP solution_out, solution_in;
@@ -508,8 +499,8 @@ int main(int argc, char **argv)
 		assert(compare_vectors(problem_out.mu, problem_in.mu));
 		assert(compare_vectors(problem_out.q, problem_in.q));
 		assert(compare_vectors(problem_out.s, problem_in.s));
+		assert(problem_out.GetSpaceDim() == problem_in.GetSpaceDim());
 
-		assert(compare_local_problems(problem_out, problem_in) && "ERROR: written/read problem comparison failed");
 		assert(compare_solutions(solution_out, solution_out) && "ERROR: written/read solution comparison failed");
 		assert(num_guesses_out == num_guesses_in && "ERROR: numbers of written and read guesses differ");
 		for (auto i = 0; i < num_guesses_in; i++)
