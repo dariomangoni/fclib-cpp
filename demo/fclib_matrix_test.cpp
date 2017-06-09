@@ -21,7 +21,6 @@ int main()
 	IO(H5Gclose(id));
 
 	IO(H5Gclose(main_id));
-	IO(H5Fclose(file_id));
 
 	mat.DisplayMatrix();
 	getchar();

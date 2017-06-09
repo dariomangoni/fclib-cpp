@@ -106,8 +106,9 @@ void random_matrix(std::shared_ptr<fclib::fclib_matrix_CPP> mat, int m, int n, f
 /* generate random vector */
 void random_vector(std::shared_ptr<std::vector<double>> vect, int n)
 {
+	vect->resize(n);
 	for (auto row_sel = 0; row_sel<vect->size(); ++ row_sel)
-		(*vect)[n] = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
+		(*vect)[row_sel] = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
 
 }
 
@@ -155,30 +156,35 @@ void random_global_problem(fclib::fclib_global_problem_CPP& problem_out,
 	{
 		random_matrix(problem_out.matG, global_dofs, neq, mat_format);
 		random_vector(problem_out.b, problem_out.matG->GetColumns());
-
 	}
 
-	//if (create_info)
-	//	problem->info = problem_info("A random global problem", "With random matrices", "And fake math");
-	//else problem->info = NULL;
+	if (create_info)
+		problem->info = problem_info("A random global problem", "With random matrices", "And fake math");
+	else problem->info = NULL;
 
 }
 
-/* generate random global solutions */
-void random_global_solutions(fclib::fclib_global_problem_CPP& global_prob, std::vector<std::shared_ptr<fclib::fclib_solution_CPP>> sol_vect)
+void random_global_solutions(fclib::fclib_global_problem_CPP& global_prob, fclib::fclib_solution_CPP& sol_vect)
 {
 
-	for (auto i = 0; i < sol_vect.size(); i++)
-	{
-		random_vector((*sol_vect[i]).v, global_prob.matM->GetColumns());
-		random_vector((*sol_vect[i]).u, global_prob.matH->GetColumns());
-		random_vector((*sol_vect[i]).r, global_prob.matH->GetColumns());
+		random_vector(sol_vect.v, global_prob.matM->GetColumns());
+		random_vector(sol_vect.u, global_prob.matH->GetColumns());
+		random_vector(sol_vect.r, global_prob.matH->GetColumns());
 
 		if (global_prob.matG)
-			random_vector((*sol_vect[i]).l, global_prob.matG->GetColumns());
+			random_vector(sol_vect.l, global_prob.matG->GetColumns());
 
 		else
-			(*sol_vect[i]).l = nullptr;
+			sol_vect.l = nullptr;
+}
+
+/* generate random global solutions */
+void random_global_solutions(fclib::fclib_global_problem_CPP& global_prob, std::vector<fclib::fclib_solution_CPP>& sol_vect, int num_sol)
+{
+	sol_vect.resize(num_sol);
+	for (auto i = 0; i < sol_vect.size(); i++)
+	{
+		random_global_solutions(global_prob, sol_vect[i]);
 	}
 }
 
@@ -191,7 +197,7 @@ void random_local_problem(fclib::fclib_local_problem_CPP& local_prob, int contac
 	random_matrix(local_prob.matW, spacedim*contact_points, spacedim*contact_points,mat_format);
 	if (neq && rand() % 2)
 	{
-		random_matrix(local_prob.matV, spacedim*contact_points, neq,mat_format);
+		random_matrix(local_prob.matV, spacedim*contact_points, neq, mat_format);
 		random_matrix(local_prob.matR, neq, neq,mat_format);
 		random_vector(local_prob.s, neq);
 	}
@@ -210,21 +216,27 @@ void random_local_problem(fclib::fclib_local_problem_CPP& local_prob, int contac
 }
 
 
-/* generate random local solutions */
-void random_local_solutions(fclib::fclib_local_problem_CPP& local_prob, std::vector<std::shared_ptr<fclib::fclib_solution_CPP>> sol_vect)
+void random_local_solutions(fclib::fclib_local_problem_CPP& local_prob, fclib::fclib_solution_CPP& sol_vect)
 {
 
-	for (auto i = 0; i < sol_vect.size(); i++)
-	{
-		(*sol_vect[i]).v = nullptr;
-		random_vector((*sol_vect[i]).u, local_prob.matW->GetColumns());
-		random_vector((*sol_vect[i]).r, local_prob.matW->GetColumns());
+		sol_vect.v = nullptr;
+		random_vector(sol_vect.u, local_prob.matW->GetColumns());
+		random_vector(sol_vect.r, local_prob.matW->GetColumns());
 
 		if (local_prob.matR)
-			random_vector((*sol_vect[i]).l, local_prob.matR->GetColumns());
+			random_vector(sol_vect.l, local_prob.matR->GetColumns());
 
 		else
-			(*sol_vect[i]).l = nullptr;
+			sol_vect.l = nullptr;
+}
+
+/* generate random local solutions */
+void random_local_solutions(fclib::fclib_local_problem_CPP& local_prob, std::vector<fclib::fclib_solution_CPP>& sol_vect, int num_sol)
+{
+	sol_vect.resize(num_sol);
+	for (auto i = 0; i < sol_vect.size(); i++)
+	{
+		random_local_solutions(local_prob, sol_vect[i]);
 	}
 }
 
@@ -349,7 +361,16 @@ static int compare_matrices(char *name, std::shared_ptr<fclib::fclib_matrix_CPP>
 /* compare two vectors */
 static int compare_vectors(std::shared_ptr<std::vector<double>> a, std::shared_ptr<std::vector<double>> b)
 {
-	return a == b;
+	bool is_different = true;
+	if (a->size() != b->size())
+		return 1;
+
+	for (auto row_sel = 0; row_sel<a->size(); ++row_sel)
+	{
+		if ((*a)[row_sel] != (*b)[row_sel])
+			return false;
+	}
+	return is_different;
 }
 
 ///* compare problem infos */
@@ -398,136 +419,114 @@ static int compare_local_problems(fclib::fclib_local_problem_CPP& a, fclib::fcli
 }
 
 /* compare solutions */
-static int compare_solutions(std::shared_ptr<fclib::fclib_solution_CPP> a, std::shared_ptr<fclib::fclib_solution_CPP> b, int nv, int nr, int nl)
+static int compare_solutions(fclib::fclib_solution_CPP& a, fclib::fclib_solution_CPP& b)
 {
-	if (!compare_vectors(a->v, b->v) ||
-		!compare_vectors(a->u, b->u) ||
-		!compare_vectors(a->r, b->r) ||
-		!compare_vectors(a->l, b->l)) return 0;
+	if (!compare_vectors(a.v, b.v) ||
+		!compare_vectors(a.u, b.u) ||
+		!compare_vectors(a.r, b.r) ||
+		!compare_vectors(a.l, b.l)) return 0;
 
 	return 1;
 }
 
 int main(int argc, char **argv)
 {
-	int i;
+	srand(static_cast<unsigned int>(time(nullptr)));
 
-	srand((unsigned int)time(NULL));
 	bool global = true;
 	if (global)
 	{
-		
-		fclib::fclib_global_problem_CPP problem_out, problem_in;
-		fclib::fclib_solution_CPP solution_out, solution_out;
-		fclib::fclib_solution_CPP guesses_out, guesses_in;
-
-
-
 		int space_dimension = 2;
 		int global_dofs = 100;
 		int contact_points = 100;
 		int neq = 100;
-		int numguess = rand() % 10, n;
 		int allfine = 0;
 		bool create_G = true;
 		auto mat_format = fclib::fclib_matrix_CPP::mat_format_t::COO;
+		int num_guesses_out = 3;
+		bool create_info = false; //TODO
 
-		//problem_out = random_global_problem(10 + rand() % 900, 10 + rand() % 900, 10 + rand() % 900);
-		//solition_out = random_global_solutions(problem_out, 1);
-		//guesses_out = random_global_solutions(problem_out, numguess);
+		fclib::fclib_global_problem_CPP problem_out, problem_in;
+		fclib::fclib_solution_CPP solution_out, solution_in;
+		std::vector<fclib::fclib_solution_CPP> guesses_out, guesses_in;
+		guesses_out.resize(num_guesses_out);
+
+
+		random_global_problem(problem_out, global_dofs, contact_points,	neq, space_dimension, mat_format, create_G, create_info);
+		random_global_solutions(problem_out, solution_out);
+		random_global_solutions(problem_out, guesses_out, num_guesses_out);
 
 
 		problem_out.write_problem("output_file.hdf5");
 		solution_out.write_solution("output_file.hdf5");
-		guesses_out.write_solution("output_file.hdf5");
+		fclib::fclib_solution_CPP::write_guesses(guesses_out, "output_file.hdf5", num_guesses_out);
 
+		problem_in.read_problem("output_file.hdf5");
+		solution_in.read_solution("output_file.hdf5");
+		int num_guesses_in = fclib::fclib_solution_CPP::read_guesses(guesses_in, "output_file.hdf5");
 
+		printf("Comparing written and read global problem data ...\n");
 
-
-		if (fclib_write_global(problem_out, "output_file.hdf5"))
-			if (fclib_write_solution(solution_out, "output_file.hdf5"))
-				if (fclib_write_guesses(numguess, guesses_out, "output_file.hdf5"))
-					allfine = 1;
-
-		if (allfine)
+		assert(compare_global_problems(problem_out, problem_in) && "ERROR: written/read problem comparison failed");
+		assert(compare_solutions(solution_out, solution_out) && "ERROR: written/read solution comparison failed");
+		assert(num_guesses_out == num_guesses_in && "ERROR: numbers of written and read guesses differ");
+		for (auto i = 0; i < num_guesses_in; i++)
 		{
-			problem_in = fclib_read_global("output_file.hdf5");
-			solution_out = fclib_read_solution("output_file.hdf5");
-			guesses_in = fclib_read_guesses("output_file.hdf5", &n);
-
-			printf("Comparing written and read global problem data ...\n");
-
-			ASSERT(compare_global_problems(problem_out, problem_in), "ERROR: written/read problem comparison failed");
-			ASSERT(compare_solutions(solution_out, solution_out, problem_in->M->GetColumns(), problem_in->H->GetColumns(), (problem_in->G ? problem_in->G->GetColumns() : 0)), "ERROR: written/read solution comparison failed");
-			ASSERT(numguess == n, "ERROR: numbers of written and read guesses differ");
-			for (i = 0; i < n; i++)
-			{
-				ASSERT(compare_solutions(guesses_out + i, guesses_in + i, problem_in->M->GetColumns(), problem_in->H->GetColumns(), (problem_in->G ? problem_in->G->GetColumns() : 0)), "ERROR: written/read guess comparison failed");
-			}
-
-			printf("All comparisons PASSED\n");
-
-			fclib_delete_global(problem_in);
-			free(problem_in);
-			fclib_delete_solutions(solution_out, 1);
-			fclib_delete_solutions(guesses_in, n);
+			assert(compare_solutions(guesses_in[i], guesses_out[i]) && "ERROR: written/read guess comparison failed");
 		}
 
-		fclib_delete_global(problem_out);
-		free(problem_out);
-		fclib_delete_solutions(solution_out, 1);
-		fclib_delete_solutions(guesses_out, numguess);
+		printf("All comparisons PASSED\n");
 	}
 	else
 	{
-		struct fclib_local *problem, *p;
-		struct fclib_solution *solution, *s;
-		struct fclib_solution *guesses, *g;
-		int numguess = rand() % 10, n;
-		short allfine = 0;
 
-		problem = random_local_problem(10 + rand() % 900, 10 + rand() % 900);
-		solution = random_local_solutions(problem, 1);
-		guesses = random_local_solutions(problem, numguess);
+		int space_dimension = 2;
+		//int local_dofs = 100;
+		int contact_points = 100;
+		int neq = 100;
+		bool create_G = true;
+		auto mat_format = fclib::fclib_matrix_CPP::mat_format_t::COO;
+		int num_guesses_out = 3;
+		bool create_info = false; //TODO
 
-		if (fclib_write_local(problem, "output_file.hdf5"))
-			if (fclib_write_solution(solution, "output_file.hdf5"))
-				if (fclib_write_guesses(numguess, guesses, "output_file.hdf5")) allfine = 1;
+		fclib::fclib_local_problem_CPP problem_out, problem_in;
+		fclib::fclib_solution_CPP solution_out, solution_in;
+		std::vector<fclib::fclib_solution_CPP> guesses_out, guesses_in;
+		guesses_out.resize(num_guesses_out);
 
-		if (allfine)
+
+
+		random_local_problem(problem_out, contact_points, neq, space_dimension, mat_format);
+		random_local_solutions(problem_out, solution_out);
+		random_local_solutions(problem_out, guesses_out, num_guesses_out);
+
+
+		problem_out.write_problem("output_file.hdf5");
+		solution_out.write_solution("output_file.hdf5");
+		fclib::fclib_solution_CPP::write_guesses(guesses_out, "output_file.hdf5", num_guesses_out);
+
+		problem_in.read_problem("output_file.hdf5");
+		solution_in.read_solution("output_file.hdf5");
+		int num_guesses_in = fclib::fclib_solution_CPP::read_guesses(guesses_in, "output_file.hdf5");
+
+		printf("Comparing written and read local problem data ...\n");
+
+		printf("Computing merit function ...\n");
+
+		//double error1 = fclib_merit_local(problem, MERIT_1, solution);
+		//double error2 = fclib_merit_local(p, MERIT_1, s);
+		//printf("Error for initial problem = %12.8e\n", error1);
+		//printf("Error for read problem = %12.8e\n", error2);
+
+		assert(compare_local_problems(problem_out, problem_in) && "ERROR: written/read problem comparison failed");
+		assert(compare_solutions(solution_out, solution_out) && "ERROR: written/read solution comparison failed");
+		assert(num_guesses_out == num_guesses_in && "ERROR: numbers of written and read guesses differ");
+		for (auto i = 0; i < num_guesses_in; i++)
 		{
-			p = fclib_read_local("output_file.hdf5");
-			s = fclib_read_solution("output_file.hdf5");
-			g = fclib_read_guesses("output_file.hdf5", &n);
-
-			printf("Comparing written and read local problem data ...\n");
-
-			ASSERT(compare_local_problems(problem, p), "ERROR: written/read problem comparison failed");
-			ASSERT(compare_solutions(solution, s, 0, p->W->GetRows(), (p->R ? p->R->GetColumns() : 0)), "ERROR: written/read solution comparison failed");
-
-			printf("Computing merit function ...\n");
-
-			double error1 = fclib_merit_local(problem, MERIT_1, solution);
-			double error2 = fclib_merit_local(p, MERIT_1, s);
-			printf("Error for initial problem = %12.8e\n", error1);
-			printf("Error for read problem = %12.8e\n", error2);
-
-
-
-
-
-
-
-			ASSERT(numguess == n, "ERROR: numbers of written and read guesses differ");
-			for (i = 0; i < n; i++)
-			{
-				ASSERT(compare_solutions(guesses + i, g + i, 0, p->W->GetColumns(), (p->R ? p->R->GetColumns() : 0)), "ERROR: written/read guess comparison failed");
-			}
-
-			printf("All comparions PASSED\n");
-
+			assert(compare_solutions(guesses_in[i], guesses_out[i]) && "ERROR: written/read guess comparison failed");
 		}
 
+		printf("All comparisons PASSED\n");
 	}
 
 	remove("output_file.hdf5");
