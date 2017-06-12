@@ -176,9 +176,9 @@ namespace fclib
 
 		enum class mat_format_t
 		{
-			COO,
-			CSC,
-			CSR
+			COO = 0,
+			CSC = -1,
+			CSR = -2
 		};
 
 		fclib_matrix_CPP()
@@ -212,11 +212,6 @@ namespace fclib
 		int GetRank() const { return rank; }
 
 		bool HasInfo() const { return has_info; }
-
-		//void SetRows(int m_in) { m = m_in; }
-		//void SetColumns(int n_in) { n = n_in; }
-		//void SetNZmax(int nzmax_in) { nzmax = nzmax_in; }
-		//void SetNZ(int nz_in) { nz = nz_in; }
 		
 		void SetElementP(int index, int value) const { (*p)[index] = value; }
 		void SetElementI(int index, int value) const { (*i)[index] = value; }

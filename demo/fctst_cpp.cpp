@@ -1,26 +1,3 @@
-/* FCLIB Copyright (C) 2011--2016 FClib project
-*
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*
-* Contact: fclib-project@lists.gforge.inria.fr
-*/
-/*
-* fctst.c
-* ----------------------------------------------
-* frictional contact test
-*/
-
 #include "fclib_class.hpp"
 #include <string.h>
 #include <stdlib.h>
@@ -410,7 +387,7 @@ int main(int argc, char **argv)
 	int space_dimension = 2;
 	int contact_points = 100;
 	int neq = 100;
-	auto mat_format = fclib::fclib_matrix_CPP::mat_format_t::CSR;
+	auto mat_format = fclib::fclib_matrix_CPP::mat_format_t::COO;
 	int num_guesses_out = 3;
 	bool create_info = true;
 
@@ -418,9 +395,11 @@ int main(int argc, char **argv)
 	int global_dofs = 100;
 	bool create_G = true;
 
+	std::string global_filename = "global_output_file.hdf5";
+	std::string local_filename = "local_output_file.hdf5";
+
+	/* GLOBAL PROBLEM */
 	{
-
-
 		fclib::fclib_global_problem_CPP problem_out, problem_in;
 		fclib::fclib_solution_CPP solution_out, solution_in;
 		std::vector<fclib::fclib_solution_CPP> guesses_out, guesses_in;
@@ -432,13 +411,13 @@ int main(int argc, char **argv)
 		random_global_solutions(problem_out, guesses_out, num_guesses_out);
 
 
-		problem_out.write_problem("output_file.hdf5");
-		solution_out.write_solution("output_file.hdf5");
-		fclib::fclib_solution_CPP::write_guesses(guesses_out, "output_file.hdf5", num_guesses_out);
+		problem_out.write_problem(global_filename);
+		solution_out.write_solution(global_filename);
+		fclib::fclib_solution_CPP::write_guesses(guesses_out, global_filename, num_guesses_out);
 
-		problem_in.read_problem("output_file.hdf5");
-		solution_in.read_solution("output_file.hdf5");
-		int num_guesses_in = fclib::fclib_solution_CPP::read_guesses(guesses_in, "output_file.hdf5");
+		problem_in.read_problem(global_filename);
+		solution_in.read_solution(global_filename);
+		int num_guesses_in = fclib::fclib_solution_CPP::read_guesses(guesses_in, global_filename);
 
 		printf("Comparing written and read global problem data ...\n");
 		assert(compare_matrices(problem_out.matM, problem_in.matM));
@@ -458,14 +437,12 @@ int main(int argc, char **argv)
 		}
 
 		printf("All comparisons PASSED\n");
-		remove("output_file.hdf5");
+		//remove(global_filename.c_str());
 
 	}
 
+	/* LOCAL PROBLEM */
 	{
-
-
-
 		fclib::fclib_local_problem_CPP problem_out, problem_in;
 		fclib::fclib_solution_CPP solution_out, solution_in;
 		std::vector<fclib::fclib_solution_CPP> guesses_out, guesses_in;
@@ -476,23 +453,16 @@ int main(int argc, char **argv)
 		random_local_solutions(problem_out, guesses_out, num_guesses_out);
 
 
-		problem_out.write_problem("output_file.hdf5");
-		solution_out.write_solution("output_file.hdf5");
-		fclib::fclib_solution_CPP::write_guesses(guesses_out, "output_file.hdf5", num_guesses_out);
+		problem_out.write_problem(local_filename);
+		solution_out.write_solution(local_filename);
+		fclib::fclib_solution_CPP::write_guesses(guesses_out, local_filename, num_guesses_out);
 
-		problem_in.read_problem("output_file.hdf5");
+		problem_in.read_problem(local_filename);
 
-		solution_in.read_solution("output_file.hdf5");
-		int num_guesses_in = fclib::fclib_solution_CPP::read_guesses(guesses_in, "output_file.hdf5");
+		solution_in.read_solution(local_filename);
+		int num_guesses_in = fclib::fclib_solution_CPP::read_guesses(guesses_in, local_filename);
 
 		printf("Comparing written and read local problem data ...\n");
-
-		//printf("Computing merit function ...\n");
-		//double error1 = fclib_merit_local(problem, MERIT_1, solution);
-		//double error2 = fclib_merit_local(p, MERIT_1, s);
-		//printf("Error for initial problem = %12.8e\n", error1);
-		//printf("Error for read problem = %12.8e\n", error2);
-
 		assert(compare_matrices(problem_out.matW, problem_in.matW));
 		assert(compare_matrices(problem_out.matV, problem_in.matV));
 		assert(compare_matrices(problem_out.matR, problem_in.matR));
@@ -509,8 +479,7 @@ int main(int argc, char **argv)
 		}
 
 		printf("All comparisons PASSED\n");
-
-		remove("output_file.hdf5");
+		//remove(local_filename.c_str());
 
 	}
 
