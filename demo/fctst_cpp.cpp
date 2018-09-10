@@ -398,6 +398,15 @@ int main(int argc, char **argv)
 	std::string global_filename = "global_output_file.hdf5";
 	std::string local_filename = "local_output_file.hdf5";
 
+	std::shared_ptr<std::vector<double>> a;
+
+	if (!a)
+		std::cout << "!a is working";
+
+	if (a == nullptr)
+		std::cout << "a == nullptr is working";
+
+
 	/* GLOBAL PROBLEM */
 	{
 		fclib::fclib_global_problem_CPP problem_out, problem_in;

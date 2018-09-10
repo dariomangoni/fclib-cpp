@@ -153,9 +153,13 @@ namespace fclib
 	class FCLIB_APICOMPILE fclib_matrix_CPP
 	{
 	public:
-		std::shared_ptr<std::vector<int>> p;
-		std::shared_ptr<std::vector<int>> i;
-		std::shared_ptr<std::vector<double>> x;
+		std::shared_ptr<std::vector<int>> p = nullptr;
+		std::shared_ptr<std::vector<int>> i = nullptr;
+		std::shared_ptr<std::vector<double>> x = nullptr;
+
+		int* p_ptr = nullptr;
+		int* i_ptr = nullptr;
+		double* x_ptr = nullptr;
 
 	protected:
 
@@ -186,12 +190,15 @@ namespace fclib
 			p = std::make_shared<std::vector<int>>();
 			i = std::make_shared<std::vector<int>>();
 			x = std::make_shared<std::vector<double>>();
+			p_ptr = p->data();
+			i_ptr = i->data();
+			x_ptr = x->data();
 		}
 
 		fclib_matrix_CPP(std::shared_ptr<std::vector<int>> p_in,
 			std::shared_ptr<std::vector<int>> i_in,
 			std::shared_ptr<std::vector<double>> x_in):
-		p(p_in), i(i_in), x(x_in)
+		p(p_in), i(i_in), x(x_in), p_ptr(p_in->data()), i_ptr(i_in->data()), x_ptr(x_in->data())
 		{		}
 
 		virtual ~fclib_matrix_CPP(){}
@@ -213,16 +220,18 @@ namespace fclib
 
 		bool HasInfo() const { return has_info; }
 		
-		void SetElementP(int index, int value) const { (*p)[index] = value; }
-		void SetElementI(int index, int value) const { (*i)[index] = value; }
-		void SetElementX(int index, double value) const { (*x)[index] = value; }
+		void SetElementP(int index, int value) const { p_ptr[index] = value; }
+		void SetElementI(int index, int value) const { i_ptr[index] = value; }
+		void SetElementX(int index, double value) const { x_ptr[index] = value; }
 
-		int GetElementP(int index) const { return (*p)[index]; }
-		int GetElementI(int index) const { return (*i)[index]; }
-		double GetElementX(int index) const		{ return (*x)[index]; }
+		int GetElementP(int index) const { return p_ptr[index]; }
+		int GetElementI(int index) const { return i_ptr[index]; }
+		double GetElementX(int index) const		{ return x_ptr[index]; }
 
 		void Resize(int m_in, int n_in, int nz_in, int nzmax_in = 0)
 		{
+			assert(p && i && x && "Resizing allowed only for internal memory handling");
+
 			switch (nz_in)
 			{
 			case -2: // CSR
@@ -261,9 +270,9 @@ namespace fclib
 
 			Resize(m_temp, n_temp, nz_temp, nzmax_temp);
 
-			IO(H5LTread_dataset_int(id, "p", p->data() ));
-			IO(H5LTread_dataset_int(id, "i", i->data()));
-			IO(H5LTread_dataset_double(id, "x", x->data() ));
+			IO(H5LTread_dataset_int(id, "p", p_ptr ));
+			IO(H5LTread_dataset_int(id, "i", i_ptr));
+			IO(H5LTread_dataset_double(id, "x", x_ptr ));
 
 			has_info = false;
 			if (H5LTfind_dataset(id, "conditioning"))
@@ -317,9 +326,9 @@ namespace fclib
 				break;
 			}
 
-			IO(H5LTmake_dataset_int(id, "p", 1, &dim_p, p->data()));
-			IO(H5LTmake_dataset_int(id, "i", 1, &dim_i, i->data()));
-			IO(H5LTmake_dataset_double(id, "x", 1, &dim_x, x->data()));
+			IO(H5LTmake_dataset_int(id, "p", 1, &dim_p, p_ptr));
+			IO(H5LTmake_dataset_int(id, "i", 1, &dim_i, i_ptr));
+			IO(H5LTmake_dataset_double(id, "x", 1, &dim_x, x_ptr));
 
 
 			if (has_info)
@@ -330,15 +339,6 @@ namespace fclib
 				IO(H5LTmake_dataset_double(id, "determinant", 1, &dim, &determinant));
 				IO(H5LTmake_dataset_int(id, "rank", 1, &dim, &rank));
 			}
-		}
-
-		void DisplayMatrix() const
-		{
-			for (auto cit = x->begin(); cit != x->end(); ++cit)
-			{
-				std::cout << *cit << " ";
-			}
-			std::cout << std::endl;
 		}
 
 	};
@@ -399,6 +399,10 @@ namespace fclib
 		std::shared_ptr<fclib_matrix_CPP> matW, matV, matR;
 		std::shared_ptr<std::vector<double>> mu, q, s;
 
+		double* mu_ptr = nullptr;
+		double* q_ptr = nullptr;
+		double* s_ptr = nullptr;
+
 	protected:
 
 		void initializeVectors()
@@ -406,6 +410,9 @@ namespace fclib
 			mu = std::make_shared<std::vector<double>>();
 			q = std::make_shared<std::vector<double>>();
 			s = std::make_shared<std::vector<double>>();
+			mu_ptr = mu->data();
+			q_ptr = q->data();
+			s_ptr = s->data();
 		}
 
 		void initializeMatrices()
